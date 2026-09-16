@@ -7,6 +7,11 @@ reproducible ETL pipeline into a dimensional star schema, then analyzed for
 revenue performance, delivery reliability, seller/category performance,
 customer behavior, and regional logistics root causes.
 
+## Contributors
+
+- **[Ashish Donth](https://github.com/Namunah1)** — Original project contributor
+- **[SOHAM TANAJI RAUT](https://github.com/soham259)** — Project development, modifications, analysis, and extensions
+
 ## What this project does
 
 - Loads and validates 9 raw Olist CSVs (~1.45M rows combined) into PostgreSQL
