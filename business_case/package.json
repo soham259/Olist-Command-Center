@@ -1,0 +1,12 @@
+{
+  "name": "olist-business-case",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Generates Business_Recommendations.docx from the project's business-case findings.",
+  "scripts": {
+    "build": "node build_business_case.js"
+  },
+  "dependencies": {
+    "docx": "^8.5.0"
+  }
+}
