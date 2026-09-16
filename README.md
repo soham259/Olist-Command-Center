@@ -9,8 +9,8 @@ customer behavior, and regional logistics root causes.
 
 ## Contributors
 
-- **[Ashish Donth](https://github.com/Namunah1)** — Original project contributor
-- **[SOHAM TANAJI RAUT](https://github.com/soham259)** — Project development, modifications, analysis, and extensions
+- **[Ashish Donth](https://github.com/Namunah1)** 
+- **[SOHAM TANAJI RAUT](https://github.com/soham259)** 
 
 ## What this project does
 
