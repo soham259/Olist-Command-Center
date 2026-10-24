@@ -89,7 +89,7 @@ known limitation of the `order_status` field.
 | Zero installments | 2 rows |
 | Max installments observed | 24 (18 orders use exactly 24) |
 | Payment type mix | credit_card 73.9%, boleto 19.0%, voucher 5.6%, debit_card 1.5%, not_defined 0.003% |
-| Orders with >1 payment row | 3,407 orders (out of 99,440) — mostly 2–3 rows |
+| Orders with >1 payment row | 2,961 orders (out of 99,440 with any payment) — mostly 2–3 rows |
 | Payment-total vs. item-total reconciliation | 98,089 / 98,665 comparable orders match exactly; 249 orders differ by >R$1 |
 
 **C1 — 9 zero-value payment rows, 2 zero-installment rows.** Likely
@@ -122,7 +122,7 @@ as-is; installment count used descriptively, never assumed to equal
 | Check | Result |
 |---|---|
 | customer_unique_id with >1 order | 2,997 unique customers; max 17 orders by one customer |
-| review_id reused across >1 order | 827 review_ids, up to 3 distinct orders sharing one review_id |
+| review_id reused across >1 order | 789 review_ids (814 surplus rows), up to 3 distinct orders sharing one review_id |
 
 **D1 — Repeat customers (2,997 of 96,096 unique people, ~3.1%).** Legitimate —
 this is exactly what a repeat-purchase KPI is meant to capture. Decision:
@@ -164,13 +164,18 @@ never join or aggregate on `review_id` alone — the composite natural key
 | Status/date mismatch | 6 "canceled" orders with a delivery date present | Flagged to prevent double-counting across KPIs |
 | Payment anomaly | 9 zero-value payment rows | Excluded from average-payment-value metrics; retained in order-level metrics |
 | Payment/item reconciliation | 249 orders (0.25%) differ by >R$1 between item total and payment total | Explains why Revenue is defined on item price, not payment_value |
-| Duplicate key risk | `review_id` reused across 827 distinct order pairs | Composite key `(review_id, order_id)` used everywhere |
+| Duplicate key risk | `review_id`: 789 ids reused across orders (814 surplus rows) | Composite key `(review_id, order_id)` used everywhere |
 | No natural key | Geolocation table: 261,831 of 1,000,163 rows are full duplicates | Deduplicated to 19,015 zip-prefix rows for `dim_geography` |
 | Missing values | 2.98% of orders missing delivery date | Consistent with in-progress/canceled/unavailable orders |
-| Missing values | 58.25% of reviews have no comment text | Expected — optional field; doesn't affect review score analysis |
+| Missing values | 58.70% of reviews have no comment text | Expected — optional field; doesn't affect review score analysis |
 
-Every one of these 14 issues was investigated, classified, and given an
-explicit handling decision before any KPI was built on top of it. None were
+Every one of these 14 checks was investigated, classified, and given an
+explicit handling decision before any KPI was built on top of it. To be
+precise about the count: 12 of the 14 found a non-zero issue; 2 (referential
+integrity across the 6 core FKs, and delivered-before-purchase) are checks
+that came back clean and are listed because they are guarded on every run.
+Traceability from each line to its detection SQL, handling, and test is in
+`docs/audit_report.md`. None were
 silently dropped. "Clean," for this dataset, doesn't mean "no issues found" —
 it means every issue found has a documented, defensible, and consistently
 applied handling rule, which is the bar this project holds itself to.

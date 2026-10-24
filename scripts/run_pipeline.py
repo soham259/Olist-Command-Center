@@ -26,21 +26,28 @@ What this script actually does, step by step:
   4. Run a subset of the data-quality checks as automated assertions (fails
      loudly if a previously-clean relationship becomes dirty on a future
      data refresh — this is the actual reproducibility test)
-  5. (Re)build the analytics star schema, validating that fact_order_items
+  5. (Re)build the analytics star schema, the business-finding views and
+     the reporting views (sql/06, 08, 09), validating that fact_order_items
      and fact_orders reconcile to the cent, and that fact_payments matches
      raw.payments to the cent
-  6. Export every analytics table to CSV, for use in any downstream
+  6. Run the consolidated data-quality scorecard (sql/07) against the live
+     database and log every line
+  7. Export every analytics table to CSV, for use in any downstream
      reporting/BI tool
 
 Logging goes to both console and logs/pipeline_<timestamp>.log.
 Exits with a non-zero code and a clear message on any validation failure.
 
-Configuration: set OLIST_DB_URL to override the default local connection
-string (postgresql+psycopg2://postgres:postgres@localhost:5432/olist).
+Configuration: see scripts/config.py. Set OLIST_DB_URL (environment variable
+or .env file) to override the default local connection string
+(postgresql+psycopg2://postgres:postgres@localhost:5432/olist).
+
+WARNING: steps 2 and 5 run `DROP SCHEMA ... CASCADE` on the `raw` and
+`analytics` schemas of the TARGET database. Point OLIST_DB_URL at a dedicated
+project database, never at a database holding other work.
 """
 
 import logging
-import os
 import sys
 import time
 from pathlib import Path
@@ -48,49 +55,14 @@ from pathlib import Path
 import pandas as pd
 from sqlalchemy import create_engine, text
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-RAW_DIR = PROJECT_ROOT / "raw_data"
-SQL_DIR = PROJECT_ROOT / "sql"
-LOG_DIR = PROJECT_ROOT / "logs"
-LOG_DIR.mkdir(exist_ok=True)
-ANALYTICS_EXPORT_DIR = PROJECT_ROOT / "data_export"
-
-ANALYTICS_TABLES = [
-    "dim_date", "dim_customer", "dim_product", "dim_seller", "dim_geography",
-    "fact_order_items", "fact_orders", "fact_payments",
-]
-
-DB_URL = os.environ.get(
-    "OLIST_DB_URL", "postgresql+psycopg2://postgres:postgres@localhost:5432/olist"
+# Allow `python scripts/run_pipeline.py` from the project root on any OS.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from config import (  # noqa: E402
+    ANALYTICS_TABLES, DB_URL, EXPECTED_ROW_COUNTS, EXPORT_DIR as ANALYTICS_EXPORT_DIR,
+    LOG_DIR, PROJECT_ROOT, RAW_DIR, SQL_DIR, TABLE_MAP, masked_db_url,
 )
 
-EXPECTED_ROW_COUNTS = {
-    "olist_customers_dataset.csv": 99441,
-    "olist_orders_dataset.csv": 99441,
-    "olist_order_items_dataset.csv": 112650,
-    "olist_order_payments_dataset.csv": 103886,
-    "olist_order_reviews_dataset.csv": 100000,
-    "olist_products_dataset.csv": 32951,
-    "olist_sellers_dataset.csv": 3095,
-    "olist_geolocation_dataset.csv": 1000163,
-    "product_category_name_translation.csv": 71,
-}
-
-TABLE_MAP = [
-    ("olist_customers_dataset.csv", "raw.customers", []),
-    ("olist_orders_dataset.csv", "raw.orders",
-     ["order_purchase_timestamp", "order_approved_at",
-      "order_delivered_carrier_date", "order_delivered_customer_date",
-      "order_estimated_delivery_date"]),
-    ("olist_order_items_dataset.csv", "raw.order_items", []),
-    ("olist_order_payments_dataset.csv", "raw.payments", []),
-    ("olist_order_reviews_dataset.csv", "raw.reviews",
-     ["review_creation_date", "review_answer_timestamp"]),
-    ("olist_products_dataset.csv", "raw.products", []),
-    ("olist_sellers_dataset.csv", "raw.sellers", []),
-    ("olist_geolocation_dataset.csv", "raw.geolocation", []),
-    ("product_category_name_translation.csv", "raw.category_translation", []),
-]
+LOG_DIR.mkdir(exist_ok=True)
 
 
 def setup_logging():
@@ -99,17 +71,23 @@ def setup_logging():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[logging.FileHandler(log_path), logging.StreamHandler(sys.stdout)],
+        handlers=[logging.FileHandler(log_path, encoding="utf-8"), logging.StreamHandler(sys.stdout)],
     )
     return logging.getLogger("olist_pipeline")
 
 
 def run_sql_file(conn, path: Path, log):
+    """Execute a whole SQL file as ONE transaction: all of it commits, or none
+    of it does (any error rolls back and is re-raised with the file name)."""
     log.info(f"Running SQL file: {path.name}")
-    sql_text = path.read_text()
-    with conn.cursor() as cur:
-        cur.execute(sql_text)
-    conn.commit()
+    sql_text = path.read_text(encoding="utf-8")  # explicit: Windows defaults to cp1252
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql_text)
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise RuntimeError(f"{path.name} failed and was rolled back: {e}") from e
     log.info(f"  -> {path.name} completed OK")
 
 
@@ -123,7 +101,7 @@ def step_validate_source_files(log):
                 f"Required source file not found: {path}. "
                 f"See data/README.md for how to obtain the dataset."
             )
-        actual = len(pd.read_csv(path))
+        actual = len(pd.read_csv(path, encoding="utf-8"))
         status = "OK" if actual == expected else "MISMATCH"
         log.info(f"  {fname:45s} expected={expected:>9,}  actual={actual:>9,}  [{status}]")
         if actual != expected:
@@ -145,7 +123,7 @@ def step_build_raw_schema(engine, log):
 
     with engine.begin() as conn:
         for csv_file, table, date_cols in TABLE_MAP:
-            df = pd.read_csv(RAW_DIR / csv_file, parse_dates=date_cols)
+            df = pd.read_csv(RAW_DIR / csv_file, parse_dates=date_cols, encoding="utf-8")
             source_rows = len(df)
             schema, tbl = table.split(".")
             conn.execute(text(f"TRUNCATE TABLE {table}"))
@@ -206,6 +184,12 @@ def step_build_star_schema(engine, log):
     raw_conn = engine.raw_connection()
     try:
         run_sql_file(raw_conn, SQL_DIR / "06_star_schema.sql", log)
+        # 08 defines the business-finding views on top of the star schema;
+        # it must run after 06 because 06 drops/recreates the analytics schema.
+        run_sql_file(raw_conn, SQL_DIR / "08_business_findings.sql", log)
+        # 09 defines the reporting views read by scripts/generate_visuals.py and
+        # the pipeline_run_info metadata table; it reuses views from 08.
+        run_sql_file(raw_conn, SQL_DIR / "09_reporting_views.sql", log)
     finally:
         raw_conn.close()
 
@@ -232,17 +216,30 @@ def step_build_star_schema(engine, log):
             raise AssertionError(f"Payment reconciliation FAILED: {pay_star} != {pay_raw}")
         log.info(f"  Payment reconciliation: fact_payments={pay_star}  raw.payments={pay_raw}  [MATCH]")
 
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE analytics.pipeline_run_info SET reconciliation_passed = TRUE"))
+
     log.info("STEP 5 complete: star schema built and reconciled.\n")
+
+
+def step_data_quality_scorecard(engine, log):
+    log.info("STEP 6: Data-quality scorecard (sql/07_data_quality_scorecard.sql, computed live)")
+    sql_text = (SQL_DIR / "07_data_quality_scorecard.sql").read_text(encoding="utf-8")
+    with engine.connect() as conn:
+        rows = conn.execute(text(sql_text)).fetchall()
+    for metric, value in rows:
+        log.info(f"  {metric}: {value}")
+    log.info(f"STEP 6 complete: {len(rows)} scorecard lines.\n")
 
 
 def step_export_analytics_tables(engine, log):
     """
-    STEP 6: export every analytics table to CSV, so the star schema is
+    STEP 7: export every analytics table to CSV, so the star schema is
     available for further analysis in any spreadsheet or BI tool without
     a live database connection. Re-running this step always reflects the
     latest successful pipeline run.
     """
-    log.info("STEP 6: Exporting analytics tables to CSV")
+    log.info("STEP 7: Exporting analytics tables to CSV")
     ANALYTICS_EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     with engine.connect() as conn:
         for table in ANALYTICS_TABLES:
@@ -250,7 +247,7 @@ def step_export_analytics_tables(engine, log):
             out_path = ANALYTICS_EXPORT_DIR / f"{table}.csv"
             df.to_csv(out_path, index=False)
             log.info(f"  {table:20s} -> {out_path.relative_to(PROJECT_ROOT)} ({len(df):,} rows)")
-    log.info("STEP 6 complete: CSV export refreshed.\n")
+    log.info("STEP 7 complete: CSV export refreshed.\n")
 
 
 def main():
@@ -260,6 +257,9 @@ def main():
     log.info("Olist Command Center — ETL Pipeline starting")
     log.info("=" * 70)
 
+    log.info(f"Target database: {masked_db_url()}")
+    log.info(f"Raw data folder: {RAW_DIR}")
+    engine = None
     try:
         step_validate_source_files(log)
         engine = create_engine(DB_URL)
@@ -267,10 +267,16 @@ def main():
         step_apply_constraints(engine, log)
         step_data_quality_gate(engine, log)
         step_build_star_schema(engine, log)
+        step_data_quality_scorecard(engine, log)
         step_export_analytics_tables(engine, log)
+        with engine.begin() as conn:
+            conn.execute(text("UPDATE analytics.pipeline_run_info SET completed_at = NOW()"))
     except Exception as e:
         log.error(f"PIPELINE FAILED: {e}")
         sys.exit(1)
+    finally:
+        if engine is not None:
+            engine.dispose()
 
     elapsed = time.time() - start
     log.info("=" * 70)

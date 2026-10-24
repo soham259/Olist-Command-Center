@@ -1,0 +1,12 @@
+kpi,value,definition
+Delivered item revenue (R$),13221498.11,"SUM(item price), delivered orders"
+Freight on delivered orders (R$),2198275.64,"SUM(freight_value), delivered orders"
+Delivered orders,96478.0,status = delivered
+Average order value (R$),137.04,revenue / delivered orders
+Late-delivery rate (%),8.11,late / delivered with a delivery date
+On-time delivery rate (%),91.89,1 − late rate
+Average review score,4.087,"order-level average, orders with a review"
+Customers (people),93358.0,customer_unique_id with ≥1 delivered order
+Repeat-purchase rate (%),3.0,2+ delivered orders / customers
+Sellers,3095.0,all sellers
+Raw source rows,1550922.0,9 raw tables

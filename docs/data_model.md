@@ -60,7 +60,7 @@ cardinality fact for revenue calculation** — joining `order_items` directly to
 ```
 orders (1) ──< reviews (usually 1, occasionally 2-3)
 ```
-98,886 orders have exactly 1 review; 551 have 2; 4 have 3. Same fan-out risk
+98,126 orders have exactly 1 review; 543 have 2; 4 have 3 (99,224-row reviews file). Same fan-out risk
 as payments if joined carelessly to order_items.
 
 ```

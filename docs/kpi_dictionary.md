@@ -14,10 +14,10 @@ conform to these definitions rather than redefining them ad hoc.
 
 | Definition | Total (delivered orders) |
 |---|---:|
-| Item price only | R$13,221,363.14 |
-| Item price + freight | R$15,419,630.29 |
+| Item price only | R$13,221,498.11 |
+| Item price + freight | R$15,419,773.75 |
 | `payment_value` (all payment rows) | R$15,422,461.77 |
-| Difference: payment_value vs. (item price + freight) | R$2,831.48 (0.018%) |
+| Difference: payment_value vs. (item price + freight) | R$2,688.02 (0.017%) |
 
 **Why item price (not payment_value, not item+freight) is the primary
 Revenue KPI:**
@@ -73,6 +73,14 @@ any meaningful sense.
 
 **Result:** 91.89%.
 
+**Boundary case, stated explicitly:** `order_estimated_delivery_date` is
+stored at midnight (00:00:00), so an order delivered at any time *during* the
+estimated day compares as later than the estimate and is counted **late**
+(1,292 delivered orders fall on the estimated day itself). This is a strict
+reading of "on time". Comparing calendar dates instead would give 93.23%
+on-time. The project keeps the strict timestamp rule everywhere (KPI, star
+schema, state and regional rates) so all figures are mutually consistent.
+
 ## 4. Delivery Delay
 
 **Definition:** `delay_days = order_delivered_customer_date -
@@ -86,8 +94,13 @@ anomaly (`docs/data_quality.md`) does **not** corrupt this headline delay
 metric. It does corrupt any *leg-level* breakdown (e.g., carrier-to-customer
 transit time), which is a separate, more granular metric not defined here.
 
-**Result:** platform average is negative (~-9.3 days) — Olist delivers
-earlier than promised on average. Average delay and late-rate can diverge by
+**Result:** platform average is negative (−11.18 days, computed in
+fractional days) — Olist delivers earlier than promised on average.
+*Audit note (2026-10): earlier versions of this file reported ~−9.3 days, a figure
+that could not be reproduced from the data under any definition tried
+(order-level average: −11.18; average of per-seller averages: −11.4).
+`fact_orders.delay_days` previously used `EXTRACT(DAY FROM interval)`, which
+truncates toward zero; it now stores fractional days.* Average delay and late-rate can diverge by
 state, so both are reported (see `docs/sql_analysis.md`,
 `docs/logistics_analysis.md`).
 
@@ -109,7 +122,7 @@ available on drill-down.
 ## 6. Review Score
 
 **Definition:** `order_review_score = AVG(review_score)` across all review
-rows tied to that `order_id` (handles the 555 orders with 2-3 reviews).
+rows tied to that `order_id` (handles the 547 orders with 2-3 reviews).
 Category- and seller-level review scores are then `AVG(order_review_score)` —
 averaging the order-level score, not the raw review rows, so a
 multi-reviewed order doesn't get proportionally more weight.
@@ -118,12 +131,11 @@ multi-reviewed order doesn't get proportionally more weight.
 
 | Method | Result |
 |---|---:|
-| Raw row-level average (all 100,000 review rows) | 4.071 |
-| Order-level average (order-deduplicated first) | 4.071 |
+| Raw row-level average (all 99,224 review rows) | 4.086 |
+| Order-level average (order-deduplicated first) | 4.087 |
 
-Identical to 3 decimal places at the platform-wide aggregate — the 555
-affected orders are too small a share (0.6% of orders) to move the global
-number. The order-level method is still used going forward, because it
+Within 0.001 at the platform-wide aggregate — the 547 affected orders are
+too small a share (0.6% of orders) to move the global number. The order-level method is still used going forward, because it
 matters more at the category/seller grain, where a multi-reviewed order
 concentrated in a small category could move that category's average more
 noticeably.
@@ -136,9 +148,9 @@ noticeably.
 | Freight Revenue | SUM(order_items.freight_value) | delivered orders | R$2,198,275.64 |
 | AOV | Revenue / distinct delivered orders | delivered orders | R$137.04 |
 | On-Time Delivery Rate | delivered_date <= estimated_date | delivered, non-null delivery date | 91.89% |
-| Avg Delivery Delay | delivered_date - estimated_date | delivered, non-null delivery date | ~-9.3 days |
+| Avg Delivery Delay | delivered_date - estimated_date | delivered, non-null delivery date | −11.18 days |
 | Cancellation Rate | status = canceled | all orders | 0.63% |
 | Unavailable Rate | status = unavailable | all orders | 0.61% |
 | Order Failure Rate | status in (canceled, unavailable) | all orders | 1.24% |
-| Review Score | AVG(order-level avg review_score) | orders with ≥1 review | 4.071 / 5 |
+| Review Score | AVG(order-level avg review_score) | orders with ≥1 review | 4.087 / 5 |
 | Repeat Purchase Rate | customer_unique_id with 2+ delivered orders | delivered orders | 3.00% |

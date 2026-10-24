@@ -3,7 +3,17 @@
 -- the CURRENT state of the database — a single source of truth that also
 -- doubles as a regression check that nothing drifted since those phases.
 
-SELECT 'Total source rows loaded' AS metric, '1,467,918 rows across 9 raw tables' AS value
+-- Every value below is computed from the live database. (Audit fix: three
+-- lines were previously hard-coded text — '1,467,918 rows', '827 review_ids
+-- (1,629 rows)' and the geolocation figures — and the first two did not match
+-- the supplied data.)
+
+SELECT 'Total source rows loaded' AS metric,
+    TO_CHAR((SELECT COUNT(*) FROM raw.customers) + (SELECT COUNT(*) FROM raw.orders)
+          + (SELECT COUNT(*) FROM raw.order_items) + (SELECT COUNT(*) FROM raw.payments)
+          + (SELECT COUNT(*) FROM raw.reviews) + (SELECT COUNT(*) FROM raw.products)
+          + (SELECT COUNT(*) FROM raw.sellers) + (SELECT COUNT(*) FROM raw.geolocation)
+          + (SELECT COUNT(*) FROM raw.category_translation), 'FM9,999,999') || ' rows across 9 raw tables' AS value
 UNION ALL
 SELECT 'Referential integrity: orphan rows (6 core FK relationships)',
     (SELECT COUNT(*)::text FROM raw.orders o LEFT JOIN raw.customers c ON o.customer_id=c.customer_id WHERE c.customer_id IS NULL)
@@ -27,7 +37,7 @@ SELECT 'Date anomaly: carrier handoff before approval', (SELECT COUNT(*)::text F
 UNION ALL
 SELECT '"Delivered" status with null delivery date', (SELECT COUNT(*)::text FROM raw.orders WHERE order_status='delivered' AND order_delivered_customer_date IS NULL)
 UNION ALL
-SELECT '"Canceled" status with a delivery date present', (SELECT COUNT(*)::text FROM raw.orders WHERE order_status!='delivered' AND order_delivered_customer_date IS NOT NULL)
+SELECT '"Canceled" status with a delivery date present', (SELECT COUNT(*)::text FROM raw.orders WHERE order_status='canceled' AND order_delivered_customer_date IS NOT NULL)
 UNION ALL
 SELECT 'Payment anomaly: zero-value payment rows', (SELECT COUNT(*)::text FROM raw.payments WHERE payment_value=0)
 UNION ALL
@@ -36,9 +46,17 @@ SELECT 'Payment anomaly: orders with payment/item-total mismatch >R$1', (SELECT 
     HAVING ABS(SUM(oi.price+oi.freight_value) - (SELECT SUM(payment_value) FROM raw.payments p WHERE p.order_id=oi.order_id)) > 1
 ) t) || ' orders (0.25% of comparable orders)'
 UNION ALL
-SELECT 'Duplicate candidate: review_id reused across orders', '827 review_ids (1,629 rows) — composite key (review_id, order_id) used instead'
+SELECT 'Duplicate candidate: review_id reused across orders',
+    (SELECT COUNT(*)::text FROM (SELECT review_id FROM raw.reviews GROUP BY review_id HAVING COUNT(*) > 1) t)
+    || ' review_ids reused (' ||
+    (SELECT (COUNT(*) - COUNT(DISTINCT review_id))::text FROM raw.reviews)
+    || ' surplus rows) — composite key (review_id, order_id) used instead'
 UNION ALL
-SELECT 'Duplicate candidate: geolocation full-row duplicates', '261,831 of 1,000,163 rows — deduplicated to 19,015 zip-prefix rows in dim_geography'
+SELECT 'Duplicate candidate: geolocation full-row duplicates',
+    (SELECT TO_CHAR(COUNT(*) - (SELECT COUNT(*) FROM (SELECT DISTINCT * FROM raw.geolocation) d), 'FM9,999,999') FROM raw.geolocation)
+    || ' of ' || (SELECT TO_CHAR(COUNT(*), 'FM9,999,999') FROM raw.geolocation)
+    || ' rows — deduplicated to ' || (SELECT TO_CHAR(COUNT(*), 'FM9,999,999') FROM analytics.dim_geography)
+    || ' zip-prefix rows in dim_geography'
 UNION ALL
 SELECT 'Missing values: order_delivered_customer_date', (SELECT COUNT(*)::text FROM raw.orders WHERE order_delivered_customer_date IS NULL) || ' (' || ROUND(100.0*(SELECT COUNT(*) FROM raw.orders WHERE order_delivered_customer_date IS NULL)/(SELECT COUNT(*) FROM raw.orders),2) || '%)'
 UNION ALL

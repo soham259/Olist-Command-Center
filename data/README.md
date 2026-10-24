@@ -16,7 +16,15 @@ The CSVs used to build this project were sourced from a public GitHub mirror
 of the dataset rather than downloaded directly from Kaggle, and were checked
 against the dataset's well-known public row counts before use (see
 `docs/data_dictionary.md` for the verification table). If you download the
-files yourself directly from Kaggle, you should get byte-identical data.
+files yourself directly from Kaggle, you should get the same row counts as
+the table below.
+
+**Dataset revision note (2026-10 audit):** the reviews file exists in two
+published revisions — 100,000 rows (used when this project's documentation
+was first written) and 99,224 rows (the revision supplied for the audit). The
+pipeline is validated against the 99,224-row file; the other 8 files match
+in both. The expected counts live in one place, `scripts/config.py`
+(`EXPECTED_ROW_COUNTS`).
 
 ## Expected files
 
@@ -29,14 +37,19 @@ Place the following 9 files in this repository's `raw_data/` directory
 | `olist_orders_dataset.csv` | 99,441 |
 | `olist_order_items_dataset.csv` | 112,650 |
 | `olist_order_payments_dataset.csv` | 103,886 |
-| `olist_order_reviews_dataset.csv` | 100,000 |
+| `olist_order_reviews_dataset.csv` | 99,224 |
 | `olist_products_dataset.csv` | 32,951 |
 | `olist_sellers_dataset.csv` | 3,095 |
 | `olist_geolocation_dataset.csv` | 1,000,163 |
 | `product_category_name_translation.csv` | 71 |
 
 `scripts/run_pipeline.py` checks these row counts before doing anything else
-and stops if a file is missing or doesn't match.
+and stops if a file is missing or doesn't match. `scripts/verify_schema.py`
+additionally checks every file's column names.
+
+**Folder convention:** one copy of the CSVs, in `<project root>/raw_data/`,
+unzipped, with the exact filenames above. (Set `OLIST_RAW_DIR` in `.env` only
+if you deliberately keep them elsewhere.)
 
 ## Why raw data isn't committed to this repository
 

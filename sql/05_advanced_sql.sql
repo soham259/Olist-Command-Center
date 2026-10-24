@@ -164,8 +164,9 @@ WITH order_delay AS (
     SELECT
         o.order_id,
         c.customer_state,
-        EXTRACT(DAY FROM (o.order_delivered_customer_date - o.order_purchase_timestamp)) AS delivery_duration_days,
-        EXTRACT(DAY FROM (o.order_delivered_customer_date - o.order_estimated_delivery_date)) AS delay_days
+        EXTRACT(EPOCH FROM (o.order_delivered_customer_date - o.order_purchase_timestamp)) / 86400 AS delivery_duration_days,
+        EXTRACT(EPOCH FROM (o.order_delivered_customer_date - o.order_estimated_delivery_date)) / 86400 AS delay_days,
+        (o.order_delivered_customer_date > o.order_estimated_delivery_date) AS is_late
     FROM raw.orders o
     JOIN raw.customers c ON o.customer_id = c.customer_id
     WHERE o.order_status = 'delivered'
@@ -174,9 +175,13 @@ WITH order_delay AS (
 SELECT
     customer_state,
     COUNT(*) AS orders,
-    ROUND(AVG(delivery_duration_days), 1) AS avg_delivery_days,
-    ROUND(AVG(delay_days), 1) AS avg_delay_days,
-    ROUND(100.0 * COUNT(*) FILTER (WHERE delay_days > 0) / COUNT(*), 2) AS pct_late,
+    ROUND(AVG(delivery_duration_days)::numeric, 1) AS avg_delivery_days,
+    ROUND(AVG(delay_days)::numeric, 1) AS avg_delay_days,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE is_late) / COUNT(*), 2) AS pct_late,
+    -- Audit fix: pct_late previously used `delay_days > 0` on a day count
+    -- truncated by EXTRACT(DAY ...), which disagreed with the KPI dictionary's
+    -- timestamp-based late definition (AL showed 21.41% here vs 23.93% in
+    -- docs/logistics_analysis.md). Both now use the same rule.
     RANK() OVER (ORDER BY AVG(delay_days) DESC) AS worst_delay_rank
 FROM order_delay
 GROUP BY customer_state

@@ -1,2 +1,6 @@
 -r requirements.txt
-pytest
+pytest>=8,<10
+# Notebook (notebooks/Olist_Analysis.ipynb): open it with `jupyter notebook`
+notebook>=7,<8
+ipykernel>=6.29
+nbclient>=0.10

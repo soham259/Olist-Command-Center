@@ -165,7 +165,10 @@ JOIN (
 ) city_freq ON g.geolocation_zip_code_prefix = city_freq.geolocation_zip_code_prefix
            AND g.geolocation_city = city_freq.geolocation_city
            AND g.geolocation_state = city_freq.geolocation_state
-ORDER BY g.geolocation_zip_code_prefix, city_freq.freq DESC;
+ORDER BY g.geolocation_zip_code_prefix, city_freq.freq DESC, g.geolocation_city, g.geolocation_state;
+-- (Audit fix: the last two ORDER BY keys break ties between equally frequent
+-- city spellings deterministically; without them DISTINCT ON could pick a
+-- different spelling on different runs.)
 
 -- ============================================================
 -- FACTS
@@ -240,7 +243,11 @@ SELECT
     CASE WHEN o.order_status = 'delivered' AND o.order_delivered_customer_date IS NOT NULL
          THEN o.order_delivered_customer_date <= o.order_estimated_delivery_date END,
     CASE WHEN o.order_status = 'delivered' AND o.order_delivered_customer_date IS NOT NULL
-         THEN EXTRACT(DAY FROM (o.order_delivered_customer_date - o.order_estimated_delivery_date)) END
+         THEN ROUND((EXTRACT(EPOCH FROM (o.order_delivered_customer_date - o.order_estimated_delivery_date)) / 86400)::numeric, 2) END
+    -- delay_days = fractional days late (+) / early (-). Audit fix: previously
+    -- EXTRACT(DAY FROM interval), which truncates toward zero, so an order
+    -- delivered 15 hours after its estimate was flagged late (is_on_time = FALSE)
+    -- yet showed delay_days = 0.
 FROM raw.orders o
 JOIN raw.customers rc ON o.customer_id = rc.customer_id
 JOIN analytics.dim_customer dc ON rc.customer_unique_id = dc.customer_unique_id

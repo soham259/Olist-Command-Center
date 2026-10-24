@@ -42,12 +42,39 @@ hides this real gradient. High spend and repeat behavior are correlated in a
 way that geography is not, which makes customer value, not customer
 location, the more promising axis for a loyalty or retention program.
 
-**What this suggests:** a loyalty program or targeted retention outreach
-aimed at the high-value segment has a clearer behavioral rationale than a
-geographic campaign — these are customers already 8-9x more likely to come
-back on their own; a modest nudge is working with the grain of existing
-behavior rather than trying to create loyalty from scratch in a segment that
-has shown almost none.
+Source: `analytics.v_customer_spend_tier` (`sql/08_business_findings.sql`).
+All figures in the table above reproduce exactly on the supplied data.
+
+## Audit caveat (2026-10): the spend gradient is largely mechanical
+
+The tiers are built on **lifetime** spend (the sum over all of a customer's
+delivered orders). A customer with two or more orders accumulates spend
+across them, so repeat customers drift into the top tier by construction:
+311 of the 395 repeat customers in the top tier have an *average* order
+value below the R$420 threshold — they are there because they bought more
+than once.
+
+Re-cutting the same 93,358 customers by the value of their **first** order
+(`analytics.v_repeat_by_first_order_tier`) removes that circularity:
+
+| First-order value | Customers | Repeat rate |
+|---|---:|---:|
+| ≥ R$420 | 4,337 | 2.19% |
+| R$90–420 | 39,496 | 2.85% |
+| < R$90 | 49,525 | 3.19% |
+
+By first-order value, high spenders repeat slightly **less** often, not more.
+
+**What this means:** the 8.52% vs 3.00% comparison is arithmetically correct
+and a fair *description* of the platform's most valuable customers (they are
+disproportionately repeat buyers, and the tier holds 29% of revenue). It is
+**not** evidence that spending more makes customers more loyal, or that
+high-value customers are a group "already primed to repeat".
+
+**What this suggests:** the top lifetime-spend tier is worth protecting
+because of its revenue share, but any loyalty programme for it should be
+tested against a held-out comparison group before scaling (see
+`docs/recommendations.md`, Recommendation 4).
 
 **What this segmentation does NOT claim:** it does not identify *why*
 high-value customers repeat more. That could be the value tier itself

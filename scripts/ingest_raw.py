@@ -1,72 +1,54 @@
 """
-CSV -> PostgreSQL raw layer ingestion.
+CSV -> PostgreSQL raw layer ingestion (standalone).
 
-Rerunnable: truncates each raw table before reloading. Reports row counts
-loaded per table and compares against source CSV row counts as a basic
-validation check.
+Runs Steps 1-4 of scripts/run_pipeline.py only — validate source files,
+(re)build and load the raw schema, apply FK constraints and indexes, and run
+the referential-integrity gate — without building the star schema. Use it
+when you want to (re)load the raw layer on its own.
 
-This is a standalone version of Step 2 of scripts/run_pipeline.py, kept
-separate for cases where you want to (re)load the raw layer without running
-the full pipeline (constraints, quality gate, star schema).
+It reuses the pipeline's own step functions rather than keeping a second copy
+of the loading logic. (The previous standalone version kept its own copy,
+which had drifted: it used `TRUNCATE` on tables referenced by foreign keys,
+which PostgreSQL refuses once sql/03 has been applied, and it never re-applied
+the constraints afterwards.)
+
+WARNING: this drops and recreates the `raw` schema (and, via CASCADE, any
+`analytics` objects that depend on it) in the database named by OLIST_DB_URL.
+Use a dedicated project database.
+
+Run with: python scripts/ingest_raw.py
 """
-import os
 import sys
 from pathlib import Path
 
-import pandas as pd
-from sqlalchemy import create_engine, text
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-RAW_DIR = PROJECT_ROOT / "raw_data"
+from sqlalchemy import create_engine  # noqa: E402
 
-DB_URL = os.environ.get(
-    "OLIST_DB_URL", "postgresql+psycopg2://postgres:postgres@localhost:5432/olist"
+from config import DB_URL, masked_db_url  # noqa: E402
+from run_pipeline import (  # noqa: E402
+    setup_logging, step_apply_constraints, step_build_raw_schema,
+    step_data_quality_gate, step_validate_source_files,
 )
-
-TABLE_MAP = [
-    # (csv filename, target table, date columns to parse)
-    ("olist_customers_dataset.csv", "raw.customers", []),
-    ("olist_orders_dataset.csv", "raw.orders",
-     ["order_purchase_timestamp", "order_approved_at",
-      "order_delivered_carrier_date", "order_delivered_customer_date",
-      "order_estimated_delivery_date"]),
-    ("olist_order_items_dataset.csv", "raw.order_items", []),
-    ("olist_order_payments_dataset.csv", "raw.payments", []),
-    ("olist_order_reviews_dataset.csv", "raw.reviews",
-     ["review_creation_date", "review_answer_timestamp"]),
-    ("olist_products_dataset.csv", "raw.products", []),
-    ("olist_sellers_dataset.csv", "raw.sellers", []),
-    ("olist_geolocation_dataset.csv", "raw.geolocation", []),
-    ("product_category_name_translation.csv", "raw.category_translation", []),
-]
 
 
 def main():
-    engine = create_engine(DB_URL)
-    results = []
-
-    with engine.begin() as conn:
-        for csv_file, table, date_cols in TABLE_MAP:
-            path = RAW_DIR / csv_file
-            df = pd.read_csv(path, parse_dates=date_cols)
-            source_rows = len(df)
-
-            schema, tbl = table.split(".")
-            conn.execute(text(f"TRUNCATE TABLE {table}"))
-            df.to_sql(tbl, con=conn, schema=schema, if_exists="append", index=False, method="multi", chunksize=5000)
-
-            loaded_rows = conn.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()
-            status = "OK" if loaded_rows == source_rows else "MISMATCH"
-            results.append((table, source_rows, loaded_rows, status))
-            print(f"{table:28s} source={source_rows:>9,}  loaded={loaded_rows:>9,}  [{status}]")
-
-    print()
-    mismatches = [r for r in results if r[3] == "MISMATCH"]
-    if mismatches:
-        print(f"WARNING: {len(mismatches)} table(s) had row-count mismatches.")
+    log = setup_logging()
+    log.info(f"Target database: {masked_db_url()}")
+    engine = None
+    try:
+        step_validate_source_files(log)
+        engine = create_engine(DB_URL)
+        step_build_raw_schema(engine, log)
+        step_apply_constraints(engine, log)
+        step_data_quality_gate(engine, log)
+    except Exception as e:
+        log.error(f"INGESTION FAILED: {e}")
         sys.exit(1)
-    else:
-        print("All tables loaded with row counts matching source CSVs.")
+    finally:
+        if engine is not None:
+            engine.dispose()
+    log.info("Raw layer loaded, row counts verified, constraints applied.")
 
 
 if __name__ == "__main__":

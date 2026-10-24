@@ -1,3 +1,7 @@
-pandas
-sqlalchemy
-psycopg2-binary
+# Version ranges verified in the 2026-10 audit (pandas 3.1, SQLAlchemy 2.1,
+# psycopg2-binary 2.9.13, matplotlib 3.11 on Python 3.13). psycopg2-binary ships prebuilt
+# Windows wheels, so no compiler or PostgreSQL headers are needed.
+pandas>=2.2,<4
+sqlalchemy>=2.0,<3
+psycopg2-binary>=2.9.10,<3
+matplotlib>=3.8,<4   # charts in scripts/generate_visuals.py

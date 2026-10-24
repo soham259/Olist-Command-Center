@@ -26,3 +26,18 @@ logs/*.log
 Thumbs.db
 .vscode/
 .idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Generated reports: retain the report and selected charts/tables intentionally
+# Ignore temporary executed notebooks
+reports/*_executed.ipynb
+
+# Local environment files
+.env.*
+!.env.example
+
+# Local database and temporary files
+*.log
+*.tmp

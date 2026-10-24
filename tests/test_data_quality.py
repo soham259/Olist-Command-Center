@@ -12,21 +12,21 @@ raw CSVs directly.
 
 Run with: pytest tests/test_data_quality.py -v
 
-Set OLIST_DB_URL to override the default local connection string.
+Connection string: see scripts/config.py (OLIST_DB_URL env var or .env file).
 """
-import os
-
 import pytest
 from sqlalchemy import create_engine, text
 
-DB_URL = os.environ.get(
-    "OLIST_DB_URL", "postgresql+psycopg2://postgres:postgres@localhost:5432/olist"
-)
+from config import DB_URL, EXPECTED_RAW_TABLE_COUNTS
+
+pytestmark = pytest.mark.db  # every test here queries the live database
 
 
 @pytest.fixture(scope="module")
 def engine():
-    return create_engine(DB_URL)
+    eng = create_engine(DB_URL)
+    yield eng
+    eng.dispose()
 
 
 def scalar(engine, sql):
@@ -38,11 +38,8 @@ def scalar(engine, sql):
 # 1. DATA LOADING — row counts match known source counts exactly
 # ============================================================
 
-EXPECTED_RAW_COUNTS = {
-    "raw.customers": 99441, "raw.orders": 99441, "raw.order_items": 112650,
-    "raw.payments": 103886, "raw.reviews": 100000, "raw.products": 32951,
-    "raw.sellers": 3095, "raw.geolocation": 1000163, "raw.category_translation": 71,
-}
+# Single source of truth: scripts/config.py (EXPECTED_ROW_COUNTS manifest).
+EXPECTED_RAW_COUNTS = EXPECTED_RAW_TABLE_COUNTS
 
 @pytest.mark.parametrize("table,expected", EXPECTED_RAW_COUNTS.items())
 def test_raw_row_counts(engine, table, expected):
@@ -183,7 +180,10 @@ def test_review_id_is_KNOWN_not_unique(engine):
     somewhere in the future."""
     total = scalar(engine, "SELECT COUNT(*) FROM raw.reviews")
     distinct = scalar(engine, "SELECT COUNT(DISTINCT review_id) FROM raw.reviews")
-    assert total - distinct == 827, "The known review_id duplication count has changed — re-investigate"
+    # 814 surplus rows in the supplied 99,224-row reviews file (audit-verified).
+    # The original pin of 827 came from the earlier 100,000-row revision of
+    # this file; see the EXPECTED_ROW_COUNTS note in scripts/config.py.
+    assert total - distinct == 814, "The known review_id duplication count has changed — re-investigate"
 
 
 # ============================================================

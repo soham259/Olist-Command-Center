@@ -6,7 +6,7 @@
 |---|---:|
 | On-Time Delivery % | 91.89% |
 | Late Delivery % | 8.11% (7,826 orders) |
-| Avg Delay vs. Estimate | -9.3 days (negative = early on average) |
+| Avg Delay vs. Estimate | −11.18 days (negative = early on average) |
 | Order Failure Rate | 1.24% (canceled + unavailable) |
 
 ## Why late % leads over average delay
@@ -47,12 +47,13 @@ causal conclusion.
 
 | Delivery outcome | Avg review score | Orders |
 |---|---:|---:|
-| On-time | 4.28 | 88,644 |
-| Late | 2.55 | 7,826 |
+| On-time | 4.29 | 88,644 |
+| Late | 2.57 | 7,826 |
 
-A 1.73-point gap on a 5-point scale, and the gap holds consistently across
-every state examined (SP: 4.32 vs 2.89, RJ: 4.23 vs 2.12, MG: 4.27 vs 2.65,
-and others) — not just in one region. This consistency makes the association
+A 1.73-point gap on a 5-point scale (4.29 vs 2.57 on the 99,224-row reviews
+file), and the gap holds consistently across every state examined (per-state
+figures from the original analysis: SP: 4.32 vs 2.89, RJ: 4.23 vs 2.12, MG:
+4.27 vs 2.65, and others) — not just in one region. This consistency makes the association
 more credible as a real pattern, but it's stated as **"late deliveries are
 associated with lower review scores," not "late delivery causes lower review
 scores."** A late order might also be more likely to involve a damaged item,

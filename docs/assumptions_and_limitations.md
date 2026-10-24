@@ -9,7 +9,7 @@
 | `customer_unique_id`, not `customer_id`, defines "a customer" | Repeat-purchase rate, customer segmentation | `customer_id` is 1:1 with orders by construction (`docs/data_dictionary.md`) |
 | A seller needs ≥20 orders to be included in performance segmentation | Seller quadrant analysis | Prevents a seller with 1-2 orders and one bad review from distorting a ranking meant to reflect sustained performance |
 | A state needs ≥30 delivered orders to appear in state-level late-rate rankings | Logistics state comparisons | Same rationale — small-sample states would otherwise produce noisy, unstable rankings |
-| Order-level review score = average of all reviews tied to that order | Review score KPI, category/seller review averages | Handles the 555 orders with 2-3 review rows without double-counting them |
+| Order-level review score = average of all reviews tied to that order | Review score KPI, category/seller review averages | Handles the 547 orders with 2-3 review rows without double-counting them |
 | Median revenue × median performance score defines the seller quadrant split | Seller segmentation | Relative to this platform's actual seller base, not an arbitrary fixed threshold |
 | Scenario analysis assumes *partial* (not full) improvement toward a benchmark | Both scenarios in `docs/scenario_analysis.md` | A conservative planning assumption — full parity with a benchmark segment isn't a realistic default to assume |
 
@@ -49,7 +49,16 @@
   order involving 2+ sellers has its single `order_status` attributed to all
   of them, which is a simplification stated explicitly in
   `docs/seller_and_category_analysis.md` rather than glossed over.
-- **The pipeline and full test suite were not executed end-to-end in the
-  environment used to prepare this repository** (no live PostgreSQL
-  instance available). See `docs/testing.md` for exactly what to run to
-  verify locally.
+- **Dataset revision.** The reviews file has been published in two
+  revisions (100,000 and 99,224 rows). This project is validated against the
+  99,224-row file; figures that depend on review scores (seller performance
+  scores, category review averages) differ slightly from the original
+  analysis, which used the 100,000-row revision. See `docs/audit_report.md`.
+- **Strict on-time rule.** Deliveries during the estimated day count as late
+  (the estimate is stored at midnight) — see `docs/kpi_dictionary.md`.
+- **Lifetime-spend tiers are partly circular for repeat-rate analysis.**
+  Repeat customers accumulate higher lifetime spend by definition; see the
+  first-order-value check in `docs/customer_analysis.md`.
+- **Execution status.** The pipeline and all three test files were executed
+  end-to-end on PostgreSQL 16 during the 2026-10 audit (81 of 81 tests
+  passed; see `docs/testing.md`). They have not yet been run on Windows.

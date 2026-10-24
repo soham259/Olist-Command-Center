@@ -24,16 +24,22 @@ from ingestion.
 |---|---:|---:|
 | olist_customers_dataset.csv | 99,441 | 5 |
 | olist_orders_dataset.csv | 99,441 | 8 |
-| olist_order_items_dataset.csv | 112,650 | 6 |
+| olist_order_items_dataset.csv | 112,650 | 7 |
 | olist_order_payments_dataset.csv | 103,886 | 5 |
-| olist_order_reviews_dataset.csv | 100,000 | 7 |
+| olist_order_reviews_dataset.csv | 99,224 | 7 |
 | olist_products_dataset.csv | 32,951 | 9 |
 | olist_sellers_dataset.csv | 3,095 | 4 |
 | olist_geolocation_dataset.csv | 1,000,163 | 5 |
 | product_category_name_translation.csv | 71 | 2 |
 
 **Note on the reviews file:** a naive `wc -l` line count on the raw CSV
-reports 105,759 lines, but the true row count (parsed correctly) is 100,000.
+reports 104,720 lines, but the true row count (parsed correctly) is 99,224.
+
+*Audit note (2026-10): this repository's documentation was originally written against an
+earlier revision of the reviews file with 100,000 rows. The supplied
+(current) revision has 99,224 rows; the other 8 files are identical in row
+count. All review-dependent figures below have been recomputed on the
+99,224-row file.*
 The difference comes from embedded newline characters inside quoted
 `review_comment_message` text — line-counting a CSV isn't the same as
 row-counting it once a column contains free text.
@@ -46,7 +52,7 @@ row-counting it once a column contains free text.
 | orders | `order_id` | Unique, 0 duplicates |
 | order_items | `(order_id, order_item_id)` | Unique composite key, 0 duplicates |
 | payments | `(order_id, payment_sequential)` | Unique composite key, 0 duplicates |
-| reviews | ~~`review_id`~~ → `(review_id, order_id)` | **`review_id` alone is NOT unique** — 827 review_id values are reused across two different order_ids (1,629 rows affected). The composite key `(review_id, order_id)` is unique. |
+| reviews | ~~`review_id`~~ → `(review_id, order_id)` | **`review_id` alone is NOT unique** — 789 review_id values are reused across 2-3 different order_ids (814 surplus rows; 1,603 rows involved). The composite key `(review_id, order_id)` is unique. |
 | products | `product_id` | Unique, 0 duplicates |
 | sellers | `seller_id` | Unique, 0 duplicates |
 | geolocation | none | 261,831 fully duplicate rows out of 1,000,163 — expected for a zip-lookup table scraped at address level; deduplication is handled downstream (`docs/data_model.md`), not forced at raw-load time |
@@ -69,11 +75,11 @@ customers).
 
 | Reviews per order | Order count |
 |---:|---:|
-| 1 | 98,886 |
-| 2 | 551 |
+| 1 | 98,126 |
+| 2 | 543 |
 | 3 | 4 |
 
-Joining `reviews` to `orders` naively (assuming 1:1) risks fan-out for ~555
+Joining `reviews` to `orders` naively (assuming 1:1) risks fan-out for 547
 orders. Handled explicitly in the star schema (`docs/data_model.md`) by
 averaging all reviews attached to an order into a single order-level score.
 
@@ -84,8 +90,8 @@ averaging all reviews attached to an order into a single order-level score.
 | orders | order_approved_at | 0.16% | Order likely never approved (canceled before approval) |
 | orders | order_delivered_carrier_date | 1.79% | Not yet shipped / canceled |
 | orders | order_delivered_customer_date | 2.98% | Not yet delivered / canceled / lost |
-| reviews | review_comment_title | 88.28% | Optional field — most customers don't title their review |
-| reviews | review_comment_message | 58.25% | Optional free-text field |
+| reviews | review_comment_title | 88.34% | Optional field — most customers don't title their review |
+| reviews | review_comment_message | 58.70% | Optional free-text field |
 | products | product_category_name (+ 3 related cols) | 1.85% | Missing product metadata, 610 products |
 | products | dimension/weight columns | 0.01% | 2 products only — negligible |
 

@@ -5,8 +5,10 @@
 --    relational model's constraints file).
 --  - review_id is NOT declared as a primary key here: verified during data-dictionary
 --    work that the
---    same review_id can appear against multiple order_ids (827 duplicate review_id
---    values across 1,629 rows). Natural key for reviews is (review_id, order_id).
+--    same review_id can appear against multiple order_ids (in the supplied
+--    99,224-row reviews file: 789 review_ids reused, 814 surplus rows; the
+--    earlier 100,000-row revision of the file had 827). Natural key for
+--    reviews is (review_id, order_id).
 --  - geolocation has no natural primary key at raw grain; loaded as-is including
 --    duplicates (261,831 fully duplicate rows found) - deduplication is a
 --    transformation decision, not a raw-load decision.
@@ -40,6 +42,7 @@ CREATE TABLE raw.order_items (
     order_item_id    INTEGER NOT NULL,
     product_id       VARCHAR(32) NOT NULL,
     seller_id        VARCHAR(32) NOT NULL,
+    shipping_limit_date TIMESTAMP NOT NULL,   -- present in the source CSV; was missing from this DDL, which made the load fail
     price             NUMERIC(12,2) NOT NULL,
     freight_value      NUMERIC(12,2) NOT NULL,
     PRIMARY KEY (order_id, order_item_id)
@@ -86,8 +89,8 @@ CREATE TABLE raw.sellers (
 
 CREATE TABLE raw.geolocation (
     geolocation_zip_code_prefix   INTEGER NOT NULL,
-    geolocation_lat                 NUMERIC(10,7) NOT NULL,
-    geolocation_lng                  NUMERIC(10,7) NOT NULL,
+    geolocation_lat                 DOUBLE PRECISION NOT NULL,  -- audit fix: was NUMERIC(10,7), which rounded source
+    geolocation_lng                  DOUBLE PRECISION NOT NULL,  -- coordinates and created 32 extra "duplicate" rows
     geolocation_city                  VARCHAR(100) NOT NULL,
     geolocation_state                  VARCHAR(2) NOT NULL
 );

@@ -64,10 +64,11 @@ unavailable); 1.74% still `in_progress` in the dataset snapshot.
 (not WHERE) because the filter depends on the GROUP BY aggregation itself,
 with a volume floor (`orders_with_review >= 50`) so a category with 2 orders
 and one bad review doesn't rank as "worst." Reviews are pre-averaged to one
-score per order in a CTE before joining to category, to avoid the 555
-multi-reviewed orders counting twice. Worst 5: `office_furniture` (3.61 avg,
-n=1,254), `fashion_male_clothing` (3.74, n=106), `audio` (3.82, n=348),
-`home_confort` (3.88, n=392), `bed_bath_table` (3.92, n=9,272).
+score per order in a CTE before joining to category, to avoid the 547
+multi-reviewed orders counting twice. Worst 5: `office_furniture` (3.62 avg,
+n=1,244), `fashion_male_clothing` (3.77, n=105), `audio` (3.84, n=345),
+`home_confort` (3.88, n=390), `bed_bath_table` (3.94, n=9,177) — recomputed
+on the 99,224-row reviews file.
 `office_furniture` recurs throughout this project as a flagged category — see
 `docs/root_cause_analysis.md` and `docs/scenario_analysis.md`.
 
@@ -119,8 +120,11 @@ states" story.
 negative — Olist delivers earlier than its own estimate almost everywhere on
 average, most likely because `order_estimated_delivery_date` bakes in a
 deliberate buffer rather than because logistics is uniformly excellent.
-Alagoas (AL) shows -7.9 days average delay but **21.41% late** — the highest
-late rate in the list. Average delay and late-rate can disagree, because a
+Alagoas (AL) shows about −8 days average delay but **23.93% late** — the
+highest late rate in the list. (*Audit note (2026-10): this query previously
+computed late % as `delay_days > 0` on a day count truncated by
+`EXTRACT(DAY ...)`, which gave 21.41% and disagreed with the KPI dictionary's
+timestamp rule; it now uses the same rule as every other late-rate figure.*) Average delay and late-rate can disagree, because a
 state can have a few very-early deliveries pulling its average down while
 still having the highest proportion of individually late orders — which is
 why late-rate, not average delay, is used as the primary logistics KPI (see
@@ -128,9 +132,10 @@ why late-rate, not average delay, is used as the primary logistics KPI (see
 excludes tiny states from the ranking.
 
 **Sellers with above-average delivery delay.** `AVG(avg_seller_delay) OVER
-()` computes the platform benchmark (-9.3 days) on the same row set as the
-per-seller figure. The single worst-performing seller with meaningful volume
+()` computes the platform benchmark (the average of per-seller averages,
+about −11.4 days on the current data) on the same row set as the per-seller
+figure. The single worst-performing seller with meaningful volume
 (≥20 orders) averages +1.4 days late — a genuinely different sign from the
-platform's -9.3 day norm, a ~10.7-day gap versus benchmark. A volume floor
+platform's norm of roughly −11 days. A volume floor
 (`HAVING COUNT(DISTINCT order_id) >= 20`) prevents a seller with one late
 order from topping the list.

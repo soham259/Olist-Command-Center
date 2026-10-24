@@ -1,0 +1,4 @@
+first_order_tier,customers,repeat_rate_pct
+1_first_order_ge_420,4337,2.19
+2_first_order_90_420,39496,2.85
+3_first_order_lt_90,49525,3.19

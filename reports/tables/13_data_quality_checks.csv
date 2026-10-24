@@ -1,0 +1,28 @@
+check_id,category,check_name,observed,status,explanation
+dt_delivered_before_carrier,Date sequencing,Delivered before carrier handoff,23.0,WARN,"known exception, 23 documented"
+dt_carrier_before_approval,Date sequencing,Carrier handoff before approval,1359.0,WARN,"known exception, 1,359 documented"
+dt_canceled_with_delivery,Date sequencing,Canceled orders with a delivery date,6.0,WARN,"known exception, 6 documented"
+dup_review_id,Duplicates,review_id reused across orders (surplus rows),814.0,WARN,"known exception, 814 documented"
+na_delivered_no_date,Missing values,"""Delivered"" orders with no delivery date",8.0,WARN,"known exception, 8 documented"
+pay_zero_value,Payments,Zero-value payment rows,9.0,WARN,"known exception, 9 documented"
+pay_item_mismatch,Payments,Orders where payments differ from items + freight by > R$1,249.0,WARN,"known exception, 249 documented"
+ri_category_translation,Referential integrity,Products with an untranslated category,13.0,WARN,"known exception, 13 documented"
+ri_orders_no_payment,Referential integrity,Orders with no payment row,1.0,WARN,"known exception, 1 documented"
+dt_delivered_before_purchase,Date sequencing,Delivered before purchase,0.0,PASS,0 as required
+dt_approved_before_purchase,Date sequencing,Approved before purchase,0.0,PASS,0 as required
+dup_order_id,Duplicates,Duplicate order_id,0.0,PASS,0 as required
+dup_customer_id,Duplicates,Duplicate customer_id,0.0,PASS,0 as required
+dup_product_id,Duplicates,Duplicate product_id,0.0,PASS,0 as required
+dup_geolocation_rows,Duplicates,Geolocation full-row duplicates,261831.0,PASS,"expected, 261,831 documented"
+na_delivery_date,Missing values,Orders with no delivery date (all statuses),2965.0,PASS,"expected, 2,965 documented"
+na_product_category,Missing values,Products with no category,610.0,PASS,"expected, 610 documented"
+na_review_comment,Missing values,Reviews with no comment text,58247.0,PASS,"expected, 58,247 documented"
+rec_revenue_item_vs_order,Reconciliation,Delivered revenue: item grain vs order grain (R$ difference),0.0,PASS,0 as required
+rec_payments_star_vs_raw,Reconciliation,Payments: fact_payments vs raw.payments (R$ difference),0.0,PASS,0 as required
+ri_orders_customer,Referential integrity,Orders without a customer,0.0,PASS,0 as required
+ri_items_order,Referential integrity,Order items without an order,0.0,PASS,0 as required
+ri_items_product,Referential integrity,Order items without a product,0.0,PASS,0 as required
+ri_items_seller,Referential integrity,Order items without a seller,0.0,PASS,0 as required
+ri_payments_order,Referential integrity,Payments without an order,0.0,PASS,0 as required
+ri_reviews_order,Referential integrity,Reviews without an order,0.0,PASS,0 as required
+ri_orders_no_items,Referential integrity,Orders with no items,775.0,PASS,"expected, 775 documented"
