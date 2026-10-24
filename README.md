@@ -17,10 +17,10 @@ customer behavior, and regional logistics root causes.
 - Loads and validates the 9 raw Olist CSVs (**1,550,922 rows** combined; ~1M of
   them are the geolocation lookup) into PostgreSQL, checking every file's
   columns and row count against a manifest before loading
-- Audits data quality across referential integrity, date sequencing, payment
-  reconciliation, and duplicate keys — **14 data-quality checks**, each
-  classified and given an explicit handling decision (12 found a non-zero
-  issue; 2 are clean checks guarded on every run)
+- - Audits data quality across referential integrity, date sequencing, payment
+  reconciliation, missing values, and duplicate keys. The latest reporting
+  scorecard contains **36 checks: 27 PASS, 9 WARN, and 0 FAIL**; known exceptions
+  are documented.
 - Builds a dimensional star schema (3 fact tables, 5 dimensions) with
   validated grain and revenue reconciled to the cent
 - Answers a defined set of business questions in SQL (foundational + window
@@ -31,11 +31,9 @@ customer behavior, and regional logistics root causes.
 - Investigates a regional logistics pattern down to a supported conclusion
   (not just an observation)
 - Runs two explicit, clearly-labeled what-if scenarios
-- **37 automated regression tests** (`tests/test_data_quality.py`) plus 24
-  added during the 2026-10 audit — 12 business-finding tests
-  (`tests/test_business_findings.py`) and 12 that give every one of the 14
-  data-quality checks an assertion (`tests/test_scorecard_checks.py`) — all
-  61 pass against a fresh build
+- **81 automated tests** covering data quality, business findings, scorecard
+  checks, visualizations, and notebook execution. All 81 passed in the latest local test run;
+  one non-fatal warning was reported. See `docs/testing.md` for details.
 - **Analysis notebook** — `notebooks/Olist_Analysis.ipynb` walks through every
   query, table, chart and result in order, saved with its outputs so it reads
   on GitHub without running anything
@@ -285,10 +283,10 @@ Execution order of the SQL files: the pipeline runs `01` → load → `03` →
 `06` → `08` → `09` → `07`. `02`, `04` and `05` are read-only investigation scripts
 to run yourself afterwards (`psql -U postgres -d olist -f sql/04_sql_foundation.sql`).
 
-**Verification status:** the pipeline, the visuals script, the notebook and all 81 tests were executed
-end-to-end on a fresh PostgreSQL 16 database during the 2026-10 audit, and
-the headline KPIs were cross-checked with an independent pandas calculation
-directly from the CSVs (`docs/audit_report.md`). Not yet executed on Windows.
+**Verification status:** On Windows, the analysis notebook executed successfully, 
+the HTML report and its charts and tables were generated, and the latest automated 
+test run passed all 81 tests with one non-fatal warning. The local environment used PostgreSQL 17.11. 
+See `docs/audit_report.md` for the separate audit evidence and verification details.
 
 ## Troubleshooting
 
